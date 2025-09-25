@@ -99,20 +99,50 @@ const App: React.FC = () => {
     const handleLogin = async (email: string) => {
         setIsLoggingIn(true);
         try {
-            const result = await loginUser(email.trim());
-            if (result.status === 'success' && result.user) {
-                setUser(result.user);
-                window.localStorage.setItem('gessof_user', JSON.stringify(result.user));
-                
-                const storedProgress = window.localStorage.getItem(`gessof_progress_${result.user.email}`);
-                const userProgress = storedProgress ? JSON.parse(storedProgress) : {};
+            const loginResult = await loginUser(email.trim());
+    
+            if (loginResult.status === 'success' && loginResult.user) {
+                const loggedInUser = loginResult.user;
+                setUser(loggedInUser);
+                window.localStorage.setItem('gessof_user', JSON.stringify(loggedInUser));
+    
+                // Fetch all students data to get the detailed progress for the logged-in user
+                const studentsResult = await getAllStudentsFromSheet();
+                let userProgress = {};
+    
+                if (studentsResult.status === 'success' && studentsResult.students) {
+                    const currentUserData = studentsResult.students.find(s => s.email === loggedInUser.email);
+                    if (currentUserData && currentUserData.fase1Progress) {
+                        userProgress = currentUserData.fase1Progress;
+                    }
+                    // If the user is an admin, pre-populate the students list
+                    if (loggedInUser.role === 'Administrador') {
+                        setStudents(studentsResult.students);
+                    }
+                }
+    
+                // Fallback to local storage if fetching all students fails or user not found in list
+                if (Object.keys(userProgress).length === 0) {
+                    const storedProgress = window.localStorage.getItem(`gessof_progress_${loggedInUser.email}`);
+                    if (storedProgress) {
+                        try {
+                           userProgress = JSON.parse(storedProgress);
+                        } catch(e) {
+                           console.error("Failed to parse progress from local storage", e);
+                           userProgress = {};
+                        }
+                    }
+                }
+    
                 setProgress(userProgress);
+                window.localStorage.setItem(`gessof_progress_${loggedInUser.email}`, JSON.stringify(userProgress));
                 
-                showNotification(`¡Bienvenido ${result.user.name}!`, 'success');
-            } else if (result.status === 'not_found') {
+                showNotification(`¡Bienvenido ${loggedInUser.name}!`, 'success');
+    
+            } else if (loginResult.status === 'not_found') {
                 showNotification('Usuario no encontrado. Revisa tu email.', 'warning');
             } else {
-                showNotification(result.message || 'Ocurrió un error al iniciar sesión.', 'error');
+                showNotification(loginResult.message || 'Ocurrió un error al iniciar sesión.', 'error');
             }
         } catch (error) {
             console.error("Login failed:", error);

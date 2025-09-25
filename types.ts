@@ -3,6 +3,8 @@ export interface User {
   name: string;
   email: string;
   role: string;
+  // Fix: Allow progress to be a string, as it might be returned from the Google Sheet API.
+  progress?: { [key: string]: boolean } | string;
 }
 
 export interface Video {

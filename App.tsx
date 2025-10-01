@@ -6,7 +6,39 @@ import { Header, Navigation, Footer, FloatingActions } from './components/Layout
 import { Hero } from './components/Hero';
 import { OverviewPanel, PhaseOnePanel, PhaseTwoPanel, VirtualClassroomPanel, StudentsPanel, ResourcesPanel, CalendarPanel } from './components/Panels';
 import { Modal, Notification } from './components/UI';
-import { generateStudentPDF, loginUser, saveProgressToSheet, getAllStudentsFromSheet } from './services/pdfGenerator';
+import { generateStudentPDF, loginUser, saveProgressToSheet, getAllStudentsFromSheet, getVideoUrlsFromSheet, saveVideoUrlToSheet } from './services/pdfGenerator';
+
+const VideoUrlForm: React.FC<{ currentUrl: string; onSave: (url: string) => void; onCancel: () => void; }> = ({ currentUrl, onSave, onCancel }) => {
+    const [url, setUrl] = useState(currentUrl);
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSave(url);
+    };
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">URL del Video de YouTube</label>
+                <input
+                    type="url"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    className="w-full bg-dark/80 border border-primary/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    required
+                />
+            </div>
+            <div className="flex gap-2">
+                <button type="button" onClick={onCancel} className="w-full bg-slate-600/50 hover:bg-slate-600/80 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" className="w-full bg-gradient-to-r from-primary to-secondary text-white font-bold py-2 px-4 rounded-lg hover:opacity-90 transition-opacity">
+                    Guardar URL
+                </button>
+            </div>
+        </form>
+    );
+};
+
 
 const App: React.FC = () => {
     const [isAppLoading, setIsAppLoading] = useState(true);
@@ -19,6 +51,7 @@ const App: React.FC = () => {
     const [modalContent, setModalContent] = useState<React.ReactNode | null>(null);
     const [modalTitle, setModalTitle] = useState('');
     const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+    const [videoUrls, setVideoUrls] = useState<{ [key: string]: string }>({});
 
     const debounceTimeout = useRef<number | null>(null);
 
@@ -36,6 +69,20 @@ const App: React.FC = () => {
         } catch (error) {
             console.error("Failed to load user from local storage", error);
         }
+
+        const fetchInitialData = async () => {
+            try {
+                const result = await getVideoUrlsFromSheet();
+                if (result.status === 'success' && result.urls) {
+                    setVideoUrls(result.urls);
+                }
+            } catch (error) {
+                console.error("Failed to load video URLs", error);
+                showNotification("No se pudieron cargar las URLs de los videos.", "error");
+            }
+        };
+
+        fetchInitialData();
 
         const handleHashChange = () => {
             const hash = window.location.hash.substring(1) as TabId;
@@ -228,12 +275,44 @@ const App: React.FC = () => {
             generateStudentPDF(student);
         }
     };
+    
+    const handleSaveVideoUrl = async (videoId: string, url: string) => {
+        try {
+            await saveVideoUrlToSheet(videoId, url);
+            setVideoUrls(prev => ({ ...prev, [videoId]: url }));
+            showNotification('URL del video actualizada con éxito.', 'success');
+            setModalContent(null);
+        } catch (error) {
+            console.error("Error saving video URL:", error);
+            showNotification('Error al guardar la URL del video.', 'error');
+        }
+    };
+
+    const openVideoUrlModal = (videoId: string) => {
+        const currentUrl = videoUrls[videoId] || '';
+        const videoTitle = ALL_VIDEOS.find(v => v.id === videoId)?.title || 'video seleccionado';
+        setModalTitle(`Editar URL para: ${videoTitle}`);
+        setModalContent(
+            <VideoUrlForm 
+                currentUrl={currentUrl} 
+                onSave={(newUrl) => handleSaveVideoUrl(videoId, newUrl)}
+                onCancel={() => setModalContent(null)}
+            />
+        );
+    };
 
 
     const renderPanel = () => {
+        const panelProps = {
+            progress,
+            onToggleProgress: handleToggleProgress,
+            user,
+            videoUrls,
+            onEditVideoUrl: openVideoUrlModal
+        };
         switch (activeTab) {
-            case 'fase1': return <PhaseOnePanel progress={progress} onToggleProgress={handleToggleProgress} />;
-            case 'fase2': return <PhaseTwoPanel progress={progress} onToggleProgress={handleToggleProgress} />;
+            case 'fase1': return <PhaseOnePanel {...panelProps} />;
+            case 'fase2': return <PhaseTwoPanel {...panelProps} />;
             case 'aula-virtual': return <VirtualClassroomPanel />;
             case 'students': 
                 return user?.role === 'Administrador' 

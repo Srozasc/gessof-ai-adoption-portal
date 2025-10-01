@@ -1,3 +1,8 @@
+// ATENCIÓN: Para que el guardado de URLs de video funcione,
+// es crucial que actualices tu código de Google Apps Script.
+// El script corregido se encuentra en la respuesta a tu consulta.
+// El problema principal estaba en la función doPost que no manejaba
+// correctamente las diferentes acciones (guardar progreso vs. guardar URL).
 
 import { Student, User } from '../types';
 import { ALL_VIDEOS, CONFIG } from '../constants';
@@ -97,14 +102,33 @@ export const getAllStudentsFromSheet = async (): Promise<{ status: string; stude
 };
 
 export const saveProgressToSheet = async (data: { email: string; globalProgress: string; fase1Progress: { [key: string]: boolean } }) => {
+    const postData = { action: 'updateProgress', ...data };
     await fetch(CONFIG.SCRIPT_URL, {
         method: 'POST',
-        // Using 'text/plain' for the body's Content-Type can help avoid CORS preflight issues with simple Apps Script POST requests.
-        // The script itself will parse the JSON string from the postData contents.
-        body: JSON.stringify(data),
+        body: JSON.stringify(postData),
         headers: {
             'Content-Type': 'text/plain;charset=utf-8',
         },
-        mode: 'no-cors' // Apps Script doPost often requires this mode from web apps. The response cannot be read but the request is sent.
+        mode: 'no-cors' 
+    });
+};
+
+export const getVideoUrlsFromSheet = async (): Promise<{ status: string; urls?: { [key: string]: string }; message?: string }> => {
+    const response = await fetch(`${CONFIG.SCRIPT_URL}?action=getVideoUrls`);
+    if (!response.ok) {
+        throw new Error('Network response was not ok while fetching video URLs.');
+    }
+    return response.json();
+};
+
+export const saveVideoUrlToSheet = async (videoId: string, url: string) => {
+    const postData = { action: 'setVideoUrl', videoId, url };
+    await fetch(CONFIG.SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify(postData),
+        headers: {
+            'Content-Type': 'text/plain;charset=utf-8',
+        },
+        mode: 'no-cors'
     });
 };

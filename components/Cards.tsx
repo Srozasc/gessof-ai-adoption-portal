@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Video, Student, Module } from '../types';
+import { Video, Student, Module, User } from '../types';
 import { Icon } from './UI';
 
 interface VideoCardProps {
@@ -8,9 +8,12 @@ interface VideoCardProps {
     phase: 'n8n' | 'vibe';
     isCompleted: boolean;
     onToggleProgress: (videoId: string) => void;
+    url?: string;
+    user: User | null;
+    onEditUrl: (videoId: string) => void;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, phase, isCompleted, onToggleProgress }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, phase, isCompleted, onToggleProgress, url, user, onEditUrl }) => {
     const phaseStyles = {
         n8n: {
             bg: 'from-violet-500 to-indigo-500',
@@ -21,6 +24,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, phase, isCompleted,
             hoverBorder: 'hover:border-cyan-500'
         }
     };
+    const hasUrl = url && url.trim() !== '';
 
     return (
         <div className={`bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-primary/20 ${phaseStyles[phase].hoverBorder} hover:-translate-y-1`}>
@@ -33,10 +37,24 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, phase, isCompleted,
                 </div>
             </div>
             <div className="p-5">
-                <h4 className="font-bold text-lg mb-2">{video.title}</h4>
+                <h4 className="font-bold text-lg mb-1">{video.title}</h4>
+                {user?.role === 'Administrador' && (
+                    <button onClick={() => onEditUrl(video.id)} className="text-xs text-cyan-400 hover:text-cyan-300 mb-2 p-1 rounded hover:bg-cyan-400/10">
+                        <Icon name="fas fa-edit" /> Editar link del video
+                    </button>
+                )}
                 <p className="text-sm text-slate-400 mb-4 h-10">{video.description}</p>
                  <div className="flex gap-2 mb-4">
-                    <button className="flex-1 text-sm bg-primary/20 hover:bg-primary/40 text-white font-semibold py-2 px-2 rounded-lg transition-colors"><Icon name="fas fa-play" /> Ver</button>
+                    <a
+                        href={hasUrl ? url : undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => !hasUrl && e.preventDefault()}
+                        aria-disabled={!hasUrl}
+                        className={`flex-1 text-sm bg-primary/20 hover:bg-primary/40 text-white font-semibold py-2 px-2 rounded-lg transition-colors flex items-center justify-center gap-1 ${!hasUrl ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <Icon name="fas fa-play" /> Ver
+                    </a>
                     <button className="flex-1 text-sm bg-cyan-500/20 hover:bg-cyan-500/40 text-white font-semibold py-2 px-2 rounded-lg transition-colors"><Icon name="fas fa-question" /> Quiz</button>
                     <button className="flex-1 text-sm bg-pink-500/20 hover:bg-pink-500/40 text-white font-semibold py-2 px-2 rounded-lg transition-colors"><Icon name="fas fa-file-alt" /> Texto</button>
                 </div>
@@ -104,9 +122,12 @@ interface VibeModuleCardProps {
     module: Module;
     progress: { [key: string]: boolean };
     onToggleProgress: (videoId: string) => void;
+    user: User | null;
+    videoUrls: { [key: string]: string };
+    onEditUrl: (videoId: string) => void;
 }
 
-export const VibeModuleCard: React.FC<VibeModuleCardProps> = ({ module, progress, onToggleProgress }) => (
+export const VibeModuleCard: React.FC<VibeModuleCardProps> = ({ module, progress, onToggleProgress, user, videoUrls, onEditUrl }) => (
     <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
         <div className="bg-gradient-to-r from-cyan-500 to-sky-500 p-6 text-center">
             <h3 className="text-xl font-bold">{module.title}</h3>
@@ -121,7 +142,10 @@ export const VibeModuleCard: React.FC<VibeModuleCardProps> = ({ module, progress
                             video={video} 
                             phase="vibe" 
                             isCompleted={!!progress[video.id]} 
-                            onToggleProgress={onToggleProgress} 
+                            onToggleProgress={onToggleProgress}
+                            url={videoUrls[video.id]}
+                            user={user}
+                            onEditUrl={onEditUrl}
                         />
                     </div>
                 ))}

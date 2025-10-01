@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Student } from '../types';
+import { Student, User } from '../types';
 import { VIDEOS_FASE1_N8N, MODULES_FASE2_VIBE, CONFIG } from '../constants';
 import { VideoCard, StudentCard, ResourceCard, VibeModuleCard } from './Cards';
 
@@ -27,15 +27,26 @@ export const OverviewPanel: React.FC = () => (
 interface PhasePanelProps {
     progress: { [key: string]: boolean };
     onToggleProgress: (videoId: string) => void;
+    user: User | null;
+    videoUrls: { [key: string]: string };
+    onEditVideoUrl: (videoId: string) => void;
 }
 
-export const PhaseOnePanel: React.FC<PhasePanelProps> = ({ progress, onToggleProgress }) => (
+export const PhaseOnePanel: React.FC<PhasePanelProps> = ({ progress, onToggleProgress, user, videoUrls, onEditVideoUrl }) => (
     <Section title="🔧 Fase 1: Capacitación n8n" description="Domina la automatización de flujos de trabajo, desde integraciones básicas hasta la creación de agentes y chatbots inteligentes con n8n.">
         <div className="overflow-x-auto p-4 -m-4">
              <div className="flex gap-8 pb-4">
                 {VIDEOS_FASE1_N8N.map(video => (
                     <div key={video.id} className="w-80 flex-shrink-0">
-                        <VideoCard video={video} phase="n8n" isCompleted={!!progress[video.id]} onToggleProgress={onToggleProgress} />
+                        <VideoCard 
+                            video={video} 
+                            phase="n8n" 
+                            isCompleted={!!progress[video.id]} 
+                            onToggleProgress={onToggleProgress}
+                            url={videoUrls[video.id]}
+                            user={user}
+                            onEditUrl={onEditVideoUrl}
+                        />
                     </div>
                 ))}
             </div>
@@ -43,11 +54,19 @@ export const PhaseOnePanel: React.FC<PhasePanelProps> = ({ progress, onTogglePro
     </Section>
 );
 
-export const PhaseTwoPanel: React.FC<PhasePanelProps> = ({ progress, onToggleProgress }) => (
+export const PhaseTwoPanel: React.FC<PhasePanelProps> = ({ progress, onToggleProgress, user, videoUrls, onEditVideoUrl }) => (
     <Section title="🧠 Fase 2: Mentoría Vibe Coding" description="Aprende a construir software en simbiosis con la IA, transformándola de una simple herramienta a tu copiloto creativo y arquitecto de soluciones.">
         <div className="space-y-8">
             {MODULES_FASE2_VIBE.map(module => (
-                <VibeModuleCard key={module.id} module={module} progress={progress} onToggleProgress={onToggleProgress} />
+                <VibeModuleCard 
+                    key={module.id} 
+                    module={module} 
+                    progress={progress} 
+                    onToggleProgress={onToggleProgress}
+                    user={user}
+                    videoUrls={videoUrls}
+                    onEditUrl={onEditVideoUrl}
+                />
             ))}
         </div>
     </Section>

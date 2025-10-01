@@ -7,7 +7,7 @@ export const CONFIG = {
   githubRepo: 'https://github.com/GESSOF/IA_PORTAL_GESSOF',
   textosIA: 'https://github.com/GESSOF/IA_PORTAL_GESSOF/tree/main/TEXTOS_IA',
   quizIA: 'https://github.com/GESSOF/IA_PORTAL_GESSOF/tree/main/QUIZ_IA',
-  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxQwnnn54WbgNS09TMSC-URz89iIej7PTuvMFRdo-WEE138OqdhOXJBX83AmtGn88CuCw/exec',
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwM1F_Yc1NGD-swWUVDzfQ48ulg-XrrDoRTvtHUJIGeG4jHVBW00dWCHWEjlkk6kafvtw/exec',
 };
 
 export const TABS: { id: any; icon: string; label: string }[] = [

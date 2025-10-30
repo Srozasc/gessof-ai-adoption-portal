@@ -1,24 +1,39 @@
-
 const USERS_SHEET_NAME = "Usuarios";
 const PROGRESS_SHEET_NAME = "Progreso_Estudiantes";
 const VIDEO_URLS_SHEET_NAME = "VideoUrls";
+const VIDEO_TEXTS_SHEET_NAME = "VideoTexts";
+
+const DRIVE_FOLDER_ID = "1Fs6q1JQP9ibETpvAOPS5AJ2oR8FJ865G"; 
 
 function doGet(e) {
   try {
-    if (e.parameter.action === "getUser") {
+    const action = e.parameter.action;
+
+    if (action === "getUser") {
       const email = e.parameter.email;
-      if (email) {
-        return getUserData(email);
-      }
+      if (email) return getUserData(email);
       throw new Error("Email no proporcionado");
     }
     
-    if (e.parameter.action === "getAllStudents") {
+    if (action === "getAllStudents") {
       return getAllStudentsData();
     }
 
-    if (e.parameter.action === "getVideoUrls") {
+    if (action === "getVideoUrls") {
       return getVideoUrls();
+    }
+
+    if (action === "getVideoTexts") {
+      const videoId = e.parameter.videoId;
+      // Si se provee videoId, devuelve los textos para ese video.
+      // Si no, devuelve todos los textos agrupados por videoId.
+      return getVideoTexts(videoId);
+    }
+    
+    if (action === "getFileContent") {
+      const fileUrl = e.parameter.fileUrl;
+      if (fileUrl) return getFileContent(fileUrl);
+      throw new Error("fileUrl no proporcionado");
     }
 
     throw new Error("Acción no válida");
@@ -33,27 +48,50 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const action = data.action;
 
-    if (action === 'setVideoUrl') {
-        if (!data.videoId || typeof data.url === 'undefined') {
-            throw new Error("Los parámetros 'videoId' y 'url' son requeridos.");
-        }
-        setVideoUrl(data.videoId, data.url);
-        return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "URL del video guardada correctamente" })).setMimeType(ContentService.MimeType.JSON);
-    
-    } else { // La acción por defecto es 'updateProgress' para mantener compatibilidad
+    switch (action) {
+      case 'updateProgress':
         const { email, globalProgress, fase1Progress } = data;
-        if (!email) {
-          throw new Error("El email es requerido para guardar el progreso.");
-        }
+        if (!email) throw new Error("El email es requerido para guardar el progreso.");
         updateStudentProgress(email, globalProgress, JSON.stringify(fase1Progress));
-        return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Progreso guardado correctamente" })).setMimeType(ContentService.MimeType.JSON);
+        return createJsonResponse({ status: "success", message: "Progreso guardado" });
+
+      case 'setVideoUrl':
+        if (!data.videoId || typeof data.url === 'undefined') throw new Error("Parámetros 'videoId' y 'url' requeridos.");
+        setVideoUrl(data.videoId, data.url);
+        return createJsonResponse({ status: "success", message: "URL guardada" });
+      
+      case 'addVideoText':
+        const { videoId, fileName, fileUrl } = data;
+        if (!videoId || !fileName || !fileUrl) throw new Error("Parámetros 'videoId', 'fileName', y 'fileUrl' requeridos.");
+        addVideoText(videoId, fileName, fileUrl);
+        return createJsonResponse({ status: "success", message: "Texto añadido" });
+
+      case 'deleteVideoText':
+        if (!data.videoId || !data.fileUrl) throw new Error("Parámetros 'videoId' y 'fileUrl' requeridos.");
+        const deletedCount = deleteVideoText(data.videoId, data.fileUrl);
+        if (deletedCount > 0) {
+          return createJsonResponse({ status: "success", message: "Texto eliminado" });
+        } else {
+          return createJsonResponse({ status: "not_found", message: "No se encontró el texto para eliminar. Revisa los logs del script." });
+        }
+      
+      case 'uploadFile':
+        if (!data.fileName || !data.mimeType || !data.data) throw new Error("Parámetros 'fileName', 'mimeType' y 'data' (base64) requeridos.");
+        const uploadedFileUrl = uploadFileToDrive(data.fileName, data.mimeType, data.data);
+        return createJsonResponse({ status: "success", fileUrl: uploadedFileUrl });
+
+      default:
+        throw new Error("Acción no reconocida o datos incompletos. Asegúrate de haber desplegado la última versión del script.");
     }
 
   } catch (error) {
-    // Esto es útil para ver los errores en los logs de Apps Script (Executions)
-    console.error("Error en doPost: " + error.toString()); 
-    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Error al procesar la solicitud: " + error.message })).setMimeType(ContentService.MimeType.JSON);
+    console.error("Error en doPost: " + error.toString() + " | Payload: " + e.postData.contents.substring(0, 500)); 
+    return createJsonResponse({ status: "error", message: "Error en el servidor de Google Apps Script: " + error.message });
   }
+}
+
+function createJsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function getUserData(email) {
@@ -67,10 +105,10 @@ function getUserData(email) {
         name: data[i][1],
         role: data[i][2]
       };
-      return ContentService.createTextOutput(JSON.stringify({ status: "success", user: user })).setMimeType(ContentService.MimeType.JSON);
+      return createJsonResponse({ status: "success", user: user });
     }
   }
-  return ContentService.createTextOutput(JSON.stringify({ status: "not_found", message: "Usuario no registrado" })).setMimeType(ContentService.MimeType.JSON);
+  return createJsonResponse({ status: "not_found", message: "Usuario no registrado" });
 }
 
 function getAllStudentsData() {
@@ -129,7 +167,7 @@ function getAllStudentsData() {
     });
   }
 
-  return ContentService.createTextOutput(JSON.stringify({ status: "success", students: students })).setMimeType(ContentService.MimeType.JSON);
+  return createJsonResponse({ status: "success", students: students });
 }
 
 function updateStudentProgress(email, progress, progressJson) {
@@ -152,16 +190,15 @@ function updateStudentProgress(email, progress, progressJson) {
   } else {
     sheet.appendRow([email, progress, progressJson, timestamp]);
   }
+  
+  SpreadsheetApp.flush();
 }
-
-// --- FUNCIONES PARA URLs DE VIDEOS ---
 
 function getVideoUrls() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(VIDEO_URLS_SHEET_NAME);
   if (!sheet) throw new Error(`La hoja "${VIDEO_URLS_SHEET_NAME}" no fue encontrada.`);
   const data = sheet.getDataRange().getValues();
   const urls = {};
-  // Empezar en 1 para saltar el encabezado
   for (let i = 1; i < data.length; i++) {
     const videoId = data[i][0];
     const url = data[i][1];
@@ -169,7 +206,7 @@ function getVideoUrls() {
       urls[videoId] = url;
     }
   }
-  return ContentService.createTextOutput(JSON.stringify({ status: "success", urls: urls })).setMimeType(ContentService.MimeType.JSON);
+  return createJsonResponse({ status: "success", urls: urls });
 }
 
 function setVideoUrl(videoId, url) {
@@ -178,7 +215,6 @@ function setVideoUrl(videoId, url) {
   const data = sheet.getDataRange().getValues();
   let videoRow = -1;
 
-  // Empezar en 1 para saltar el encabezado
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === videoId) {
       videoRow = i + 1;
@@ -187,8 +223,117 @@ function setVideoUrl(videoId, url) {
   }
 
   if (videoRow !== -1) {
-    sheet.getRange(videoRow, 2).setValue(url); // Columna B para la URL
+    sheet.getRange(videoRow, 2).setValue(url);
   } else {
     sheet.appendRow([videoId, url]);
   }
+}
+
+function uploadFileToDrive(fileName, mimeType, base64Data) {
+  try {
+    const folder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
+    const decoded = Utilities.base64Decode(base64Data);
+    const blob = Utilities.newBlob(decoded, mimeType, fileName);
+    const file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    const standardUrl = 'https://drive.google.com/file/d/' + file.getId() + '/view';
+    return standardUrl;
+  } catch (e) {
+    console.error("Error al subir archivo a Drive: " + e.toString());
+    throw new Error("No se pudo subir el archivo a Google Drive. Verifica el ID de la carpeta y los permisos.");
+  }
+}
+
+function getFileContent(fileUrl) {
+  try {
+    const fileId = getDriveIdFromUrl(fileUrl);
+    if (!fileId) {
+      throw new Error("No se pudo extraer el ID del archivo de la URL.");
+    }
+    const file = DriveApp.getFileById(fileId);
+    // Intenta obtener el contenido como texto. Funciona para GDocs, TXT, etc.
+    // Para otros tipos como PDF, podría requerir lógica adicional o APIs externas.
+    const content = file.getBlob().getDataAsString();
+    return createJsonResponse({ status: "success", content: content });
+  } catch(e) {
+    console.error("Error al obtener contenido del archivo: " + e.toString());
+    throw new Error("No se pudo leer el archivo de Google Drive. Asegúrate de que es un formato de texto compatible.");
+  }
+}
+
+function getVideoTexts(videoId) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(VIDEO_TEXTS_SHEET_NAME);
+  if (!sheet) throw new Error(`La hoja "${VIDEO_TEXTS_SHEET_NAME}" no fue encontrada.`);
+  const data = sheet.getDataRange().getValues();
+  
+  if (videoId) { // Si se pide para un video específico
+    const texts = [];
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === videoId) {
+        texts.push({
+          fileName: data[i][1],
+          fileUrl: data[i][2]
+        });
+      }
+    }
+    return createJsonResponse({ status: "success", texts: texts });
+  } else { // Si se piden todos los textos
+    const textsByVideoId = {};
+    for (let i = 1; i < data.length; i++) {
+      const currentVideoId = data[i][0];
+      if (!currentVideoId) continue;
+      if (!textsByVideoId[currentVideoId]) {
+        textsByVideoId[currentVideoId] = [];
+      }
+      textsByVideoId[currentVideoId].push({
+        fileName: data[i][1],
+        fileUrl: data[i][2]
+      });
+    }
+    return createJsonResponse({ status: "success", textsByVideoId: textsByVideoId });
+  }
+}
+
+function addVideoText(videoId, fileName, fileUrl) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(VIDEO_TEXTS_SHEET_NAME);
+  if (!sheet) throw new Error(`La hoja "${VIDEO_TEXTS_SHEET_NAME}" no fue encontrada.`);
+  sheet.appendRow([videoId, fileName, fileUrl, new Date().toISOString()]);
+}
+
+function getDriveIdFromUrl(url) {
+  try {
+    if (!url || typeof url !== 'string') return null;
+    const match = url.match(/(?:(?:\/d\/)|(?:id=))([a-zA-Z0-9_-]{25,})/);
+    return (match && match[1]) ? match[1] : null;
+  } catch (e) {
+    console.error("Error en getDriveIdFromUrl con URL: " + url + " | Error: " + e.toString());
+    return null;
+  }
+}
+
+function deleteVideoText(videoId, fileUrl) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(VIDEO_TEXTS_SHEET_NAME);
+  if (!sheet) {
+    throw new Error(`La hoja "${VIDEO_TEXTS_SHEET_NAME}" no fue encontrada.`);
+  }
+  
+  const targetFileId = getDriveIdFromUrl(fileUrl);
+  if (!targetFileId) {
+    throw new Error("La URL del archivo a eliminar no parece ser una URL de Google Drive válida.");
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  let rowsDeleted = 0;
+
+  for (let i = data.length - 1; i >= 1; i--) {
+    const sheetVideoId = (data[i][0] || '').toString().trim();
+    const sheetFileUrl = (data[i][2] || '').toString().trim();
+    const sheetFileId = getDriveIdFromUrl(sheetFileUrl);
+
+    if (sheetVideoId === videoId.trim() && sheetFileId && sheetFileId === targetFileId) {
+      sheet.deleteRow(i + 1);
+      rowsDeleted++;
+    }
+  }
+  return rowsDeleted;
 }

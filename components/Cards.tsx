@@ -1,19 +1,20 @@
-
 import React from 'react';
-import { Video, Student, Module, User } from '../types';
+import { Video, Student, Module, User, VideoText } from '../types';
 import { Icon } from './UI';
 
 interface VideoCardProps {
     video: Video;
     phase: 'n8n' | 'vibe';
     isCompleted: boolean;
-    onToggleProgress: (videoId: string) => void;
     url?: string;
+    texts: VideoText[];
     user: User | null;
     onEditUrl: (videoId: string) => void;
+    onManageTexts: (videoId: string) => void;
+    onGenerateQuiz: (videoId: string) => void;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, phase, isCompleted, onToggleProgress, url, user, onEditUrl }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, phase, isCompleted, url, texts, user, onEditUrl, onManageTexts, onGenerateQuiz }) => {
     const phaseStyles = {
         n8n: {
             bg: 'from-violet-500 to-indigo-500',
@@ -25,14 +26,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, phase, isCompleted,
         }
     };
     const hasUrl = url && url.trim() !== '';
+    const hasTexts = texts && texts.length > 0;
 
     return (
-        <div className={`bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-primary/20 ${phaseStyles[phase].hoverBorder} hover:-translate-y-1`}>
+        <div className={`bg-slate-800/50 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-primary/20 hover:-translate-y-1 border ${isCompleted ? 'border-green-500 shadow-lg shadow-green-500/10' : `border-slate-700 ${phaseStyles[phase].hoverBorder}`}`}>
             <div className={`h-40 bg-gradient-to-br ${phaseStyles[phase].bg} flex items-center justify-center text-5xl text-white/80 relative`}>
                 <span>{video.icon}</span>
                 <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">{video.duration}</div>
                 <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">{video.date}</div>
-                <div className={`absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-lg ${isCompleted ? 'bg-success' : 'bg-slate-600/50'}`}>
+                <div className={`absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-lg ${isCompleted ? 'bg-success text-white' : 'bg-slate-600/50'}`}>
                     <Icon name={isCompleted ? 'fas fa-check' : 'fas fa-circle'} />
                 </div>
             </div>
@@ -55,13 +57,20 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, phase, isCompleted,
                     >
                       <Icon name="fas fa-play" /> Ver
                     </a>
-                    <button className="flex-1 text-sm bg-cyan-500/20 hover:bg-cyan-500/40 text-white font-semibold py-2 px-2 rounded-lg transition-colors"><Icon name="fas fa-question" /> Quiz</button>
-                    <button className="flex-1 text-sm bg-pink-500/20 hover:bg-pink-500/40 text-white font-semibold py-2 px-2 rounded-lg transition-colors"><Icon name="fas fa-file-alt" /> Texto</button>
+                    <button
+                        onClick={() => hasTexts && onGenerateQuiz(video.id)}
+                        disabled={!hasTexts}
+                        title={!hasTexts ? "Añade un texto para generar el quiz" : "Generar quiz con IA"}
+                        className={`flex-1 text-sm bg-cyan-500/20 hover:bg-cyan-500/40 text-white font-semibold py-2 px-2 rounded-lg transition-colors ${!hasTexts ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                        <Icon name="fas fa-question" /> Quiz
+                    </button>
+                    <button onClick={() => onManageTexts(video.id)} className="flex-1 text-sm bg-pink-500/20 hover:bg-pink-500/40 text-white font-semibold py-2 px-2 rounded-lg transition-colors"><Icon name="fas fa-file-alt" /> Texto</button>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700/80 transition-colors">
-                    <input type="checkbox" checked={isCompleted} onChange={() => onToggleProgress(video.id)} className="w-5 h-5 accent-success" />
-                    <span className="text-sm font-medium">{isCompleted ? 'Completado' : 'Marcar como visto'}</span>
-                </label>
+                <div className={`flex items-center gap-2 p-2 rounded-lg cursor-default transition-colors ${isCompleted ? 'bg-green-500/10' : 'bg-slate-700/50'}`}>
+                    <input type="checkbox" checked={isCompleted} disabled className="w-5 h-5 accent-success" />
+                    <span className={`text-sm font-medium ${isCompleted ? 'text-green-300' : 'text-slate-400'}`}>{isCompleted ? 'Completado' : 'Pendiente'}</span>
+                </div>
             </div>
         </div>
     );
@@ -121,13 +130,15 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({ icon, title, descrip
 interface VibeModuleCardProps {
     module: Module;
     progress: { [key: string]: boolean };
-    onToggleProgress: (videoId: string) => void;
     user: User | null;
     videoUrls: { [key: string]: string };
+    videoTexts: { [key: string]: VideoText[] };
     onEditUrl: (videoId: string) => void;
+    onManageTexts: (videoId: string) => void;
+    onGenerateQuiz: (videoId: string) => void;
 }
 
-export const VibeModuleCard: React.FC<VibeModuleCardProps> = ({ module, progress, onToggleProgress, user, videoUrls, onEditUrl }) => (
+export const VibeModuleCard: React.FC<VibeModuleCardProps> = ({ module, progress, user, videoUrls, videoTexts, onEditUrl, onManageTexts, onGenerateQuiz }) => (
     <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
         <div className="bg-gradient-to-r from-cyan-500 to-sky-500 p-6 text-center">
             <h3 className="text-xl font-bold">{module.title}</h3>
@@ -142,10 +153,12 @@ export const VibeModuleCard: React.FC<VibeModuleCardProps> = ({ module, progress
                             video={video} 
                             phase="vibe" 
                             isCompleted={!!progress[video.id]} 
-                            onToggleProgress={onToggleProgress}
                             url={videoUrls[video.id]}
+                            texts={videoTexts[video.id] || []}
                             user={user}
                             onEditUrl={onEditUrl}
+                            onManageTexts={onManageTexts}
+                            onGenerateQuiz={onGenerateQuiz}
                         />
                     </div>
                 ))}

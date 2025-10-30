@@ -1,9 +1,7 @@
-
 export interface User {
   name: string;
   email: string;
   role: string;
-  // Fix: Allow progress to be a string, as it might be returned from the Google Sheet API.
   progress?: { [key: string]: boolean } | string;
 }
 
@@ -19,7 +17,7 @@ export interface Video {
 }
 
 export interface Module {
-  id: string;
+  id:string;
   title: string;
   objective: string;
   description: string;
@@ -38,5 +36,18 @@ export interface Student {
   fase2Progress: { [key: string]: boolean };
   joinDate: string;
 }
+
+export interface VideoText {
+  fileName: string;
+  fileUrl: string;
+}
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  answer: number; // index of the correct option
+}
+
+export type Quiz = QuizQuestion[];
 
 export type TabId = 'overview' | 'fase1' | 'fase2' | 'aula-virtual' | 'students' | 'resources' | 'calendar';

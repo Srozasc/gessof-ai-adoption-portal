@@ -1,10 +1,4 @@
-// ATENCIÓN: Para que el guardado de URLs de video funcione,
-// es crucial que actualices tu código de Google Apps Script.
-// El script corregido se encuentra en la respuesta a tu consulta.
-// El problema principal estaba en la función doPost que no manejaba
-// correctamente las diferentes acciones (guardar progreso vs. guardar URL).
-
-import { Student, User } from '../types';
+import { Student, User, VideoText } from '../types';
 import { ALL_VIDEOS, CONFIG } from '../constants';
 
 const createPDFContent = (student: Student): string => {
@@ -101,16 +95,21 @@ export const getAllStudentsFromSheet = async (): Promise<{ status: string; stude
     return response.json();
 };
 
-export const saveProgressToSheet = async (data: { email: string; globalProgress: string; fase1Progress: { [key: string]: boolean } }) => {
-    const postData = { action: 'updateProgress', ...data };
-    await fetch(CONFIG.SCRIPT_URL, {
+export const saveProgressToSheet = async (data: { action: string; email: string; globalProgress: string; fase1Progress: { [key: string]: boolean } }) => {
+    const response = await fetch(CONFIG.SCRIPT_URL, {
         method: 'POST',
-        body: JSON.stringify(postData),
+        body: JSON.stringify(data),
         headers: {
             'Content-Type': 'text/plain;charset=utf-8',
         },
-        mode: 'no-cors' 
     });
+    if (!response.ok) {
+        console.error("Failed to save progress", await response.text());
+    }
+    const result = await response.json();
+    if (result.status !== 'success') {
+       console.error("Error saving progress to sheet:", result.message);
+    }
 };
 
 export const getVideoUrlsFromSheet = async (): Promise<{ status: string; urls?: { [key: string]: string }; message?: string }> => {
@@ -123,12 +122,106 @@ export const getVideoUrlsFromSheet = async (): Promise<{ status: string; urls?: 
 
 export const saveVideoUrlToSheet = async (videoId: string, url: string) => {
     const postData = { action: 'setVideoUrl', videoId, url };
-    await fetch(CONFIG.SCRIPT_URL, {
+    const response = await fetch(CONFIG.SCRIPT_URL, {
         method: 'POST',
         body: JSON.stringify(postData),
         headers: {
             'Content-Type': 'text/plain;charset=utf-8',
         },
-        mode: 'no-cors'
     });
+    if (!response.ok) throw new Error('Failed to save video URL');
+    const result = await response.json();
+    if (result.status !== 'success') throw new Error(result.message || 'Failed to save video URL');
+};
+
+// --- FILE & TEXT MANAGEMENT ---
+
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+        };
+        reader.onerror = error => reject(error);
+    });
+};
+
+export const uploadFileToDrive = async (file: File): Promise<{ status: string; fileUrl?: string; message?: string }> => {
+    try {
+        const fileData = await fileToBase64(file);
+        const postData = {
+            action: 'uploadFile',
+            fileName: file.name,
+            mimeType: file.type,
+            data: fileData
+        };
+
+        const response = await fetch(CONFIG.SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(postData),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server responded with status: ${response.status}`);
+        }
+        
+        return response.json();
+
+    } catch (error) {
+        console.error("Error uploading file:", error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown upload error';
+        return { status: 'error', message: `Error en la subida: ${errorMessage}` };
+    }
+};
+
+export const getVideoTextsFromSheet = async (videoId?: string): Promise<{ status: string; texts?: VideoText[]; textsByVideoId?: { [key: string]: VideoText[] }; message?: string }> => {
+    const url = videoId 
+        ? `${CONFIG.SCRIPT_URL}?action=getVideoTexts&videoId=${encodeURIComponent(videoId)}`
+        : `${CONFIG.SCRIPT_URL}?action=getVideoTexts`;
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error('Network response was not ok while fetching video texts.');
+    }
+    return response.json();
+};
+
+export const getFileContentFromSheet = async (fileUrl: string): Promise<{ status: string; content?: string; message?: string }> => {
+    const response = await fetch(`${CONFIG.SCRIPT_URL}?action=getFileContent&fileUrl=${encodeURIComponent(fileUrl)}`);
+    if (!response.ok) {
+        throw new Error('Network response was not ok while fetching file content.');
+    }
+    return response.json();
+};
+
+export const addVideoTextToSheet = async (videoId: string, fileName: string, fileUrl: string) => {
+    const postData = { action: 'addVideoText', videoId, fileName, fileUrl };
+    const response = await fetch(CONFIG.SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify(postData),
+        headers: {
+            'Content-Type': 'text/plain;charset=utf-8',
+        },
+    });
+    if (!response.ok) throw new Error('Failed to add text record');
+    const result = await response.json();
+    if (result.status !== 'success') throw new Error(result.message || 'Failed to add text record');
+};
+
+export const deleteVideoTextFromSheet = async (videoId: string, fileUrl: string) => {
+    const postData = { action: 'deleteVideoText', videoId, fileUrl };
+    const response = await fetch(CONFIG.SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify(postData),
+        headers: {
+            'Content-Type': 'text/plain;charset=utf-8',
+        },
+    });
+    if (!response.ok) throw new Error('Failed to delete text record');
+    const result = await response.json();
+    if (result.status !== 'success') {
+      throw new Error(result.message || 'No se pudo eliminar el registro del texto.');
+    }
 };

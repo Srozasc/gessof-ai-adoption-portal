@@ -1,5 +1,5 @@
 {
-  "name": "copy-of-gessof-ai-adoption-portal",
+  "name": "gessof-ai-adoption-portal-prod",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "@google/genai": "^1.25.0",
+    "@vercel/node": "^5.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

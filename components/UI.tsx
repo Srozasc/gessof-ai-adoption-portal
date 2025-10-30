@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 export const Icon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
@@ -17,14 +16,16 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-gradient-to-br from-dark to-darker border border-primary/30 rounded-2xl p-6 max-w-lg w-full relative" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4">
+            <div className="bg-gradient-to-br from-dark to-darker border border-primary/30 rounded-2xl max-w-lg w-full relative flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center p-6 border-b border-primary/20 flex-shrink-0">
                     <h3 className="text-xl font-bold">{title}</h3>
                     <button onClick={onClose} className="w-8 h-8 rounded-full bg-primary/20 hover:bg-danger/80 flex items-center justify-center transition-colors">
                         <Icon name="fas fa-times" />
                     </button>
                 </div>
-                <div>{children}</div>
+                <div className="overflow-y-auto p-6">
+                    {children}
+                </div>
             </div>
         </div>
     );
